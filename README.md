@@ -219,14 +219,30 @@ in the codebase. For anything you're unsure about, choose the most conservative 
 
 ForgeDX uses a **deterministic hybrid scoring engine** — no LLM, no "AI confidence percentages". Same inputs always produce the same score.
 
-Each pathology has a set of signals with weights. When a signal is detected:
-- **From files**: base weight applies, plus a source bonus (file evidence is harder to fake than a survey answer)
-- **From survey**: base weight applies with a smaller bonus
-- Multiple signals pointing to the same pathology **corroborate** it, raising the evidence level
+**Signal detection:** Each pathology has a set of signals with weights. When a signal fires:
+- **From files**: base weight + a source bonus (file evidence is harder to fake than a survey)
+- **From survey**: base weight + smaller survey bonus
 
-Evidence levels: `Weak → Moderate → Strong → Corroborated`
+**Evidence level:** Determined by what *fraction* of the theoretical maximum score for that pathology was achieved, not by an absolute threshold. This keeps the label consistent across pathologies with different numbers of signals:
+- `WEAK` — ≥10% of max possible
+- `MODERATE` — ≥30%
+- `STRONG` — ≥55%
+- `CORROBORATED` — ≥80%
 
-The **GS Readiness Score** (0–100) is derived by inverting the total weighted risk across all pathologies, adjusted by severity (CRITICAL pathologies penalize more than LOW ones).
+**GS Readiness Score (0–100):** Inverting total weighted risk, where:
+- Severity multiplier: CRITICAL×4 > HIGH×3 > MEDIUM×2 > LOW×1
+- Evidence discount: CORROBORATED findings count 100%, WEAK findings count only 20%
+- Calibrated against a realistic worst-case (all 29 pathologies at their actual severities)
+
+This means a barely-detected outlier barely moves the score, while a well-corroborated CRITICAL finding has a major impact.
+
+| Score | Grade | Interpretation |
+|-------|-------|----------------|
+| 80–100 | A | GS-Ready — solid foundation for AI-assisted development |
+| 65–79 | B | Progressing — good practices present, gaps remain |
+| 50–64 | C | At Risk — significant structural debt |
+| 35–49 | D | Vulnerable — AI will amplify existing problems |
+| 0–34 | F | Critical Debt — needs intervention before AI adoption |
 
 ---
 

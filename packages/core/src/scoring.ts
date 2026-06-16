@@ -13,7 +13,16 @@ export function scorePathologies(signals: DetectedSignal[]): ScoredPathology[] {
     let score = 0
     const matchedSignals: ScoredPathology['matchedSignals'] = []
 
+    // Track theoretical max for this pathology (used to normalize evidence level)
+    let maxPossibleForPathology = 0
+
     for (const { signal, weight, source_bonus } of pathology.scoringRules.signals) {
+      // Max this signal can ever contribute (base weight + best possible source bonus)
+      const bestBonus = source_bonus
+        ? Math.max(0, ...(Object.values(source_bonus).filter((v) => v !== undefined) as number[]))
+        : 0
+      maxPossibleForPathology += weight * 100 + bestBonus * 100
+
       const detected = signalMap.get(signal)
       if (!detected?.detected) continue
 
@@ -31,13 +40,14 @@ export function scorePathologies(signals: DetectedSignal[]): ScoredPathology[] {
       matchedSignals.push({ signal, contribution, source: detected.source })
     }
 
-    const { threshold_weak, threshold_moderate, threshold_strong, threshold_corroborated } =
-      pathology.scoringRules
+    // Evidence level = what fraction of the theoretical max score was achieved
+    // This is consistent across pathologies regardless of how many signals they have
+    const completeness = maxPossibleForPathology > 0 ? score / maxPossibleForPathology : 0
     let evidenceLevel: EvidenceLevel = 'NONE'
-    if (score >= threshold_corroborated) evidenceLevel = 'CORROBORATED'
-    else if (score >= threshold_strong) evidenceLevel = 'STRONG'
-    else if (score >= threshold_moderate) evidenceLevel = 'MODERATE'
-    else if (score >= threshold_weak) evidenceLevel = 'WEAK'
+    if (completeness >= 0.80) evidenceLevel = 'CORROBORATED' // 80%+ of signals firing with bonuses
+    else if (completeness >= 0.55) evidenceLevel = 'STRONG'   // majority of signals
+    else if (completeness >= 0.30) evidenceLevel = 'MODERATE' // some signals
+    else if (completeness >= 0.10) evidenceLevel = 'WEAK'     // one or two weak signals
 
     return { pathology, score, evidenceLevel, matchedSignals }
   }).sort((a, b) => b.score - a.score)
@@ -93,15 +103,29 @@ export function computeReadinessScore(scored: ScoredPathology[]): number {
   if (findings.length === 0) return 95 // No findings = near perfect
 
   const severityWeight = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 } as const
-  const maxPossible = 29 * 100 * 4  // all pathologies, max score, max severity
+
+  // Evidence discount: only well-corroborated findings drive down the score significantly.
+  // WEAK signal → 20% weight (barely relevant), CORROBORATED → 100% (undeniable).
+  const evidenceDiscount = {
+    CORROBORATED: 1.00,
+    STRONG: 0.75,
+    MODERATE: 0.45,
+    WEAK: 0.20,
+    NONE: 0,
+  } as const
+
+  // Realistic worst-case max: actual severity distribution of all 29 pathologies at 100pts each.
+  // 5 CRITICAL(×4) + 12 HIGH(×3) + 8 MEDIUM(×2) + 4 LOW(×1) = (20+36+16+4) × 100 = 7,600
+  const REALISTIC_MAX = 7_600
 
   const totalRisk = findings.reduce((sum, f) => {
-    const weight = severityWeight[f.pathology.severity] ?? 1
-    return sum + f.score * weight
+    const sw = severityWeight[f.pathology.severity as keyof typeof severityWeight] ?? 1
+    const ed = evidenceDiscount[f.evidenceLevel as keyof typeof evidenceDiscount] ?? 0.45
+    return sum + f.score * sw * ed
   }, 0)
 
-  const riskRatio = Math.min(totalRisk / maxPossible, 1)
-  return Math.round((1 - riskRatio) * 100)
+  const riskRatio = Math.min(totalRisk / REALISTIC_MAX, 1)
+  return Math.max(0, Math.round((1 - riskRatio) * 100))
 }
 
 /** Grade based on readiness score */
