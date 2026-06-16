@@ -1,0 +1,277 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String               @id @default(cuid())
+  clerkId        String               @unique
+  email          String               @unique
+  name           String?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  orgMemberships OrganizationMember[]
+  ownedProjects  Project[]
+  memberships    TeamMember[]
+}
+
+model Organization {
+  id        String               @id @default(cuid())
+  clerkId   String               @unique
+  name      String
+  slug      String?              @unique
+  createdAt DateTime             @default(now())
+  members   OrganizationMember[]
+  projects  Project[]
+}
+
+model OrganizationMember {
+  id     String       @id @default(cuid())
+  userId String
+  orgId  String
+  role   String       @default("member")
+  org    Organization @relation(fields: [orgId], references: [id])
+  user   User         @relation(fields: [userId], references: [id])
+
+  @@unique([userId, orgId])
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  name        String
+  clientName  String
+  description String?
+  ownerId     String
+  orgId       String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  org         Organization? @relation(fields: [orgId], references: [id])
+  owner       User          @relation(fields: [ownerId], references: [id])
+  teams       Team[]
+}
+
+model Team {
+  id          String       @id @default(cuid())
+  projectId   String
+  name        String
+  description String?
+  createdAt   DateTime     @default(now())
+  assessments Assessment[]
+  project     Project      @relation(fields: [projectId], references: [id])
+  members     TeamMember[]
+}
+
+model TeamMember {
+  id       String   @id @default(cuid())
+  teamId   String
+  userId   String
+  role     String   @default("member")
+  joinedAt DateTime @default(now())
+  team     Team     @relation(fields: [teamId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
+
+  @@unique([teamId, userId])
+}
+
+model Assessment {
+  id            String             @id @default(cuid())
+  teamId        String
+  status        AssessmentStatus   @default(survey_pending)
+  failureReason String?
+  failedAt      DateTime?
+  startedAt     DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  team          Team               @relation(fields: [teamId], references: [id])
+  documents     EvidenceDocument[]
+  hypotheses    Hypothesis[]
+  prescriptions Prescription[]
+  report        Report?
+  surveyAnswers SurveyAnswer[]
+  treatmentPlan TreatmentPlan?
+}
+
+model EvidenceDocument {
+  id            String          @id @default(cuid())
+  assessmentId  String
+  fileName      String
+  fileType      String
+  fileSize      Int
+  storagePath   String
+  storageUrl    String
+  status        DocumentStatus  @default(uploaded)
+  extractedText String?
+  uploadedAt    DateTime        @default(now())
+  chunks        DocumentChunk[]
+  assessment    Assessment      @relation(fields: [assessmentId], references: [id])
+}
+
+model DocumentChunk {
+  id         String                 @id @default(cuid())
+  documentId String
+  chunkIndex Int
+  text       String
+  pageNumber Int?
+  tokenCount Int?
+  createdAt  DateTime               @default(now())
+  embedding  Unsupported("vector")?
+  document   EvidenceDocument       @relation(fields: [documentId], references: [id])
+
+  @@index([embedding], map: "document_chunk_embedding_idx")
+}
+
+model SurveyQuestion {
+  id             String         @id @default(cuid())
+  questionKey    String         @unique
+  questionText   String
+  questionType   String         @default("SINGLE_SELECT")
+  options        String[]       // answer options for select questions
+  signalKeys     String[]       // signals this question probes
+  weight         Float          @default(0.5)
+  order          Int            @default(0)
+  isRequired     Boolean        @default(true)
+  isFunnelVisible Boolean       @default(false)
+  section        String         @default("general") // spec_discipline | quality_enforcement | ai_workflow | change_governance
+  answers        SurveyAnswer[]
+}
+
+model SurveyAnswer {
+  id           String         @id @default(cuid())
+  assessmentId String
+  questionId   String
+  responseText String
+  answeredBy   String
+  source       SignalSource
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  assessment   Assessment     @relation(fields: [assessmentId], references: [id])
+  question     SurveyQuestion @relation(fields: [questionId], references: [id])
+
+  @@unique([assessmentId, questionId])
+}
+
+model Hypothesis {
+  id               String           @id @default(cuid())
+  assessmentId     String
+  pathologyCode    String
+  title            String
+  explanation      String
+  confidence       EvidenceLevel
+  evidenceExcerpts String[]
+  status           HypothesisStatus @default(pending)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  assessment       Assessment       @relation(fields: [assessmentId], references: [id])
+  prescriptions    Prescription[]
+}
+
+model Prescription {
+  id              String     @id @default(cuid())
+  assessmentId    String
+  hypothesisId    String
+  remedyCode      String
+  rationale       String
+  priority        Int
+  estimatedEffort String?
+  createdAt       DateTime   @default(now())
+  assessment      Assessment @relation(fields: [assessmentId], references: [id])
+  hypothesis      Hypothesis @relation(fields: [hypothesisId], references: [id])
+}
+
+model TreatmentPlan {
+  id           String     @id @default(cuid())
+  assessmentId String     @unique
+  planContent  Json
+  createdAt    DateTime   @default(now())
+  assessment   Assessment @relation(fields: [assessmentId], references: [id])
+}
+
+model Report {
+  id            String     @id @default(cuid())
+  assessmentId  String     @unique
+  shareToken    String     @unique @default(cuid())
+  reportContent Json
+  pdfUrl        String?
+  createdAt     DateTime   @default(now())
+  assessment    Assessment @relation(fields: [assessmentId], references: [id])
+}
+
+model PathologyKnowledge {
+  id           String                 @id @default(cuid())
+  code         String                 @unique
+  name         String
+  gsProperty   String                 // SELF_DESCRIBING | BOUNDED | DEFENDED | AUDITABLE | COMPOSABLE | VERIFIABLE | EXECUTABLE
+  description  String
+  severity     String                 // CRITICAL | HIGH | MEDIUM | LOW
+  scoringRules Json
+  createdAt    DateTime               @default(now())
+  embedding    Unsupported("vector")?
+
+  @@index([embedding], map: "pathology_knowledge_embedding_idx")
+}
+
+model RemedyKnowledge {
+  id              String   @id @default(cuid())
+  code            String   @unique
+  name            String
+  description     String
+  remediationType String   @default("practice") // practice | protocol | tool | gate
+  effort          String   @default("medium")   // low | medium | high
+  impact          String   @default("medium")   // low | medium | high | critical
+  gsProperties    String[]
+  pathologyCodes  String[] // pathology codes this remedy addresses (P-001, etc.)
+  steps           String[] // ordered implementation steps
+  createdAt       DateTime @default(now())
+}
+
+model MiniAssessmentLead {
+  id          String    @id @default(cuid())
+  email       String?   @unique
+  answers     Json
+  teaserScore Int
+  clerkUserId String?
+  convertedAt DateTime?
+  createdAt   DateTime  @default(now())
+}
+
+enum AssessmentStatus {
+  survey_pending
+  evidence_pending
+  analyzing
+  hypotheses_ready
+  prescription_ready
+  treatment_ready
+  completed
+  failed
+}
+
+enum HypothesisStatus {
+  pending
+  confirmed
+  discarded
+}
+
+enum EvidenceLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum SignalSource {
+  document
+  survey
+  manual
+}
+
+enum DocumentStatus {
+  uploaded
+  extracting
+  extracted
+  chunked
+  failed
+}

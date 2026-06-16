@@ -1,0 +1,5 @@
+export * from './types'
+export * from './pathologies'
+export * from './remedies'
+export * from './questions'
+export * from './scoring'

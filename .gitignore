@@ -1,0 +1,23 @@
+docs/specs/.build/
+.env
+.env.local
+.env.*.local
+node_modules/
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+coverage/
+.nyc_output/
+.pnpm-store/
+.turbo/
+.DS_Store
+Thumbs.db
+*.log
+pnpm-debug.log*
+playwright-report/
+test-results/
+
+# Generated reports (local artifacts)
+forgedx-report-*.html

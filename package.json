@@ -1,0 +1,14 @@
+{
+  "name": "forgedx",
+  "version": "0.1.0",
+  "scripts": {
+    "test:web": "pnpm --filter web test",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "dev": "concurrently \"pnpm dev:api\" \"pnpm dev:web\"",
+    "test:api": "pnpm --filter api test",
+    "dev:web": "pnpm --filter web dev",
+    "dev:api": "pnpm --filter api dev"
+  },
+  "private": true
+}

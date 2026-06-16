@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "outDir": "dist",
+    "rootDir": "../../",
+    "strict": true,
+    "declaration": true,
+    "sourceMap": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "paths": {
+      "@forgedx/core": ["../../packages/core/src/index.ts"]
+    }
+  },
+  "include": ["src", "../../packages/core/src"]
+}
