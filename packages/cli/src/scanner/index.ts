@@ -328,6 +328,113 @@ export function scanProject(projectPath: string): DetectedSignal[] {
   ])
   const no_api_spec_doc = !apiSpec
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // NEW SIGNALS — Team / org / AI adoption (from VairixDX disease taxonomy)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // ── Bus factor risk: no CODEOWNERS = no explicit ownership map ─────────────
+  const codeOwners = hasMatch(files, [/\/CODEOWNERS$/i, /\/\.github\/CODEOWNERS$/i])
+  const bus_factor_risk = !codeOwners
+
+  // ── AI security policy ─────────────────────────────────────────────────────
+  const aiSecurityFiles = hasMatch(files, [
+    /\/security\.md$/i,
+    /\/\.gitleaks\.toml$/i,
+    /\/\.secrets\.baseline$/i,
+    /\/ai-security/i,
+    /\/security-policy/i,
+  ])
+  const no_ai_security_policy = !aiSecurityFiles
+
+  // ── Code review standards (PR templates, CODEOWNERS, reviewpad) ────────────
+  const reviewStandards = hasMatch(files, [
+    /\/CODEOWNERS$/i,
+    /\/\.github\/CODEOWNERS$/i,
+    /\/pull_request_template\.md$/i,
+    /\/PULL_REQUEST_TEMPLATE\.md$/i,
+    /\/reviewpad\.(yml|yaml)$/i,
+    /\/\.github\/reviewpad/i,
+    /\/review-guide/i,
+    /\/code-review/i,
+  ])
+  const no_code_review_standards = !reviewStandards
+
+  // ── Onboarding documentation ────────────────────────────────────────────────
+  const onboardingDocs = hasMatch(files, [
+    /\/contributing\.md$/i,
+    /\/onboarding/i,
+    /\/setup\.md$/i,
+    /\/getting-started\.md$/i,
+    /\/docs\/setup/i,
+    /\/docs\/onboard/i,
+  ])
+  const no_onboarding_docs = !onboardingDocs
+
+  // ── Prompt library / shared AI commands ────────────────────────────────────
+  const promptLibrary = hasMatch(files, [
+    /\/\.claude\/commands\//i,
+    /\/prompts?\//i,
+    /\/\.github\/prompts?\//i,
+    /\/prompt-library/i,
+    /\/ai-commands/i,
+  ])
+  const no_prompt_library = !promptLibrary
+
+  // ── Team AI playbook (shared AI configuration and norms) ─────────────────
+  const aiPlaybook = hasMatch(files, [
+    /\/\.claude\/core\.md$/i,
+    /\/ai[-_]playbook/i,
+    /\/ai[-_]guide/i,
+    /\/ai\.md$/i,
+    /\/\.cursor\/rules/i,
+    /\/copilot-instructions\.md$/i,
+    /\/\.github\/copilot-instructions\.md$/i,
+  ])
+  const no_team_ai_playbook = !aiPlaybook && no_claude_md
+
+  // ── Model version pinning (AI tool config with pinned models) ──────────────
+  const modelPinning = hasMatch(files, [
+    /\/\.claude\.json$/i,
+    /\/claude\.json$/i,
+    /\/\.cursor\/settings\.json$/i,
+    /\/\.aider\.conf/i,
+    /\/\.copilot\/config/i,
+  ])
+  // Check if cursor settings or .claude.json pins a model version
+  let no_model_version_pinning = !modelPinning
+  if (modelPinning) {
+    const content = readSafe(modelPinning) ?? ''
+    if (!/model.*:.*['"](claude|gpt|gemini|o[123])/i.test(content)) {
+      no_model_version_pinning = true  // Config exists but no model pinned
+    }
+  }
+
+  // ── Infrastructure misconfig signals (docker-compose without proper .env) ──
+  const dockerCompose = hasMatch(files, [/\/docker-compose\.(yml|yaml)$/i])
+  const infra_misconfig_signals = !!dockerCompose && no_env_example
+
+  // ── Tech debt tracking ──────────────────────────────────────────────────────
+  const techDebtTracking = hasMatch(files, [
+    /\/tech[-_]debt/i,
+    /\/debt[-_]register/i,
+    /\/backlog\.md$/i,
+    /\/technical[-_]debt/i,
+  ])
+  const no_tech_debt_tracking = !techDebtTracking
+
+  // ── Context window violations: source files > 50KB ────────────────────────
+  const largeSourceFiles = srcFiles.filter((f) => {
+    try { return statSync(f).size > 50 * 1024 } catch { return false }
+  })
+  const context_window_violations = largeSourceFiles.length > 0
+
+  // ── Survey-only signals (scanner emits false; survey overrides if confirmed) ─
+  const unauthorized_ai_tools = false     // detected via survey only
+  const no_ai_measurement = false         // detected via survey only
+  const no_ai_rollout_plan = false        // detected via survey only
+  const skill_atrophy_signs = false       // detected via survey only
+  const phase_collapse_signs = false      // detected via survey only
+
   return [
     signal('no_navigation_root', no_navigation_root, no_navigation_root ? 'No CLAUDE.md, AGENTS.md, or copilot-instructions.md found' : `Found: ${rel(claudeMd!)}`),
     signal('no_claude_md', no_claude_md, no_claude_md ? 'No CLAUDE.md found' : `Found: ${rel(claudeMd!)}`),
@@ -365,5 +472,22 @@ export function scanProject(projectPath: string): DetectedSignal[] {
     signal('spec_last_workflow', spec_last_workflow, spec_last_workflow ? 'Code exists but no spec found — likely spec-last development' : undefined),
     signal('no_defended_spec', no_defended_spec, no_defended_spec ? 'No forbidden patterns + no navigation root = undefended spec' : undefined),
     signal('tests_not_behavioral', testFiles.length > 0 && testFiles.filter((f) => /behavior|should|given.*when.*then/i.test(readSafe(f) ?? '')).length === 0, 'Tests may not follow behavioral naming conventions'),
+    // ── New team / org / AI adoption signals ──────────────────────────────
+    signal('bus_factor_risk', bus_factor_risk, bus_factor_risk ? 'No CODEOWNERS file — critical knowledge may be concentrated in few people' : 'CODEOWNERS found'),
+    signal('no_ai_security_policy', no_ai_security_policy, no_ai_security_policy ? 'No SECURITY.md, .gitleaks.toml, or AI security policy found' : 'AI security policy found'),
+    signal('no_code_review_standards', no_code_review_standards, no_code_review_standards ? 'No PR template, CODEOWNERS, or code review guidelines found' : 'Code review standards configured'),
+    signal('no_onboarding_docs', no_onboarding_docs, no_onboarding_docs ? 'No CONTRIBUTING.md, onboarding guide, or setup docs found' : 'Onboarding documentation found'),
+    signal('no_prompt_library', no_prompt_library, no_prompt_library ? 'No shared prompt library or .claude/commands found' : 'Prompt library found'),
+    signal('no_team_ai_playbook', no_team_ai_playbook, no_team_ai_playbook ? 'No team AI playbook, AI.md, or .claude/core.md found' : 'Team AI playbook found'),
+    signal('no_model_version_pinning', no_model_version_pinning, no_model_version_pinning ? 'No AI model version pinning detected in tool config' : 'Model version pinning detected'),
+    signal('infra_misconfig_signals', infra_misconfig_signals, infra_misconfig_signals ? 'docker-compose found but no .env.example — infra/env mismatch risk' : undefined),
+    signal('no_tech_debt_tracking', no_tech_debt_tracking, no_tech_debt_tracking ? 'No tech debt register or TECH_DEBT.md found' : 'Tech debt tracking found'),
+    signal('context_window_violations', context_window_violations, context_window_violations ? `${largeSourceFiles.length} source file(s) exceed 50KB — may saturate AI context window` : undefined),
+    // ── Survey-only signals (false from scanner, overridden by survey) ─────
+    signal('unauthorized_ai_tools', unauthorized_ai_tools),
+    signal('no_ai_measurement', no_ai_measurement),
+    signal('no_ai_rollout_plan', no_ai_rollout_plan),
+    signal('skill_atrophy_signs', skill_atrophy_signs),
+    signal('phase_collapse_signs', phase_collapse_signs),
   ]
 }

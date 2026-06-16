@@ -8,6 +8,11 @@ const FILE_DETECTABLE = new Set([
   'no_spec_index', 'no_test_files', 'no_coverage_config', 'no_ci_gate',
   'no_pre_commit_hooks', 'no_contract_tests', 'no_e2e_tests', 'no_layer_enforcement',
   'no_env_example', 'no_deployment_doc', 'no_conventional_commits',
+  // New file-detectable signals
+  'bus_factor_risk', 'no_code_review_standards', 'no_onboarding_docs',
+  'no_prompt_library', 'no_team_ai_playbook', 'no_model_version_pinning',
+  'infra_misconfig_signals', 'no_tech_debt_tracking', 'context_window_violations',
+  'no_ai_security_policy',
 ])
 
 /** Answer index → signal detected mapping per question */
@@ -81,6 +86,43 @@ function answerIndexToSignals(questionKey: string, answerIndex: number): Record<
       // 0=conventional, 1=descriptive, 2=brief, 3=no attention
       return {
         no_conventional_commits: answerIndex >= 2,
+      }
+    case 'ai_tool_governance':
+      // 0=approved+policy, 1=informal, 2=each person, 3=no thought
+      return {
+        unauthorized_ai_tools: answerIndex >= 2,
+        no_ai_security_policy: answerIndex >= 2,
+      }
+    case 'ai_impact_measurement':
+      // 0=metrics+reviews, 1=some data, 2=assume, 3=never considered
+      return {
+        no_ai_measurement: answerIndex >= 2,
+      }
+    case 'ai_adoption_rollout':
+      // 0=pilot+training, 1=gradual no training, 2=mandate, 3=organic
+      return {
+        no_ai_rollout_plan: answerIndex >= 2,
+      }
+    case 'developer_ai_dependency':
+      // 0=multiplier, 1=mostly, 2=heavy reliance, 3=load-bearing
+      return {
+        skill_atrophy_signs: answerIndex >= 2,
+      }
+    case 'tdd_ai_discipline':
+      // 0=always RED first, 1=usually, 2=together, 3=no TDD
+      return {
+        phase_collapse_signs: answerIndex >= 2,
+      }
+    case 'knowledge_distribution':
+      // 0=fine documented, 1=slowed ok, 2=major pain, 3=critical failure
+      return {
+        bus_factor_risk: answerIndex >= 2,
+      }
+    case 'ai_prompt_standards':
+      // 0=prompt library in repo, 1=informal, 2=individual, 3=not considered
+      return {
+        no_prompt_library: answerIndex >= 2,
+        no_team_ai_playbook: answerIndex >= 3,
       }
     default:
       return {}

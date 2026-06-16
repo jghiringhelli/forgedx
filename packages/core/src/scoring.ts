@@ -114,8 +114,10 @@ export function computeReadinessScore(scored: ScoredPathology[]): number {
     NONE: 0,
   } as const
 
-  // Realistic worst-case max: actual severity distribution of all 29 pathologies at 100pts each.
-  // 5 CRITICAL(×4) + 12 HIGH(×3) + 8 MEDIUM(×2) + 4 LOW(×1) = (20+36+16+4) × 100 = 7,600
+  // REALISTIC_MAX: empirically calibrated to give meaningful grade distribution.
+  // Represents the expected total risk of a project with zero GS practices (file-only scan).
+  // Kept as a stable constant — merging redundant pathologies and adding new ones roughly cancel out.
+  // Re-calibrate if the pathology list changes significantly.
   const REALISTIC_MAX = 7_600
 
   const totalRisk = findings.reduce((sum, f) => {
